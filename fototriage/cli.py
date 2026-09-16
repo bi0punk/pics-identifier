@@ -17,9 +17,9 @@ DEFAULT_DB = Path("fototriage.sqlite3")
 
 def _progress(index: int, total: int, path: Path) -> None:
     short = path.name[:55]
-    print(f"\r[{index:>5}/{total:<5}] {short:<55}", end="", flush=True)
+    print(f"\r[{index:>5}/{total:<5}] {short:<55}", end="", flush=True, file=sys.stderr)
     if index == total:
-        print()
+        print(file=sys.stderr)
 
 
 def _load_items(db_path: str):
