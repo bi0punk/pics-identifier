@@ -1,0 +1,28 @@
+# Entorno y dependencias
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Datos y reportes generados
+*.sqlite3
+*.db
+reportes/
+clasificadas/
+
+# Modelos descargables
+*.pt
+*.onnx
+
+# IDE y sistema
+.vscode/
+.idea/
+.DS_Store
