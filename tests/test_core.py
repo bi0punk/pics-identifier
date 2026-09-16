@@ -3,13 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from PIL import Image
-
 from fototriage.analyzers.basic import analyze_basic, hamming_distance
 from fototriage.config import DEFAULT_CONFIG
 from fototriage.models import Detection
 from fototriage.scanner import mark_duplicates
 from fototriage.scoring import score_image
+from PIL import Image
 
 
 def config():

@@ -5,9 +5,11 @@ from typing import Any
 
 from .models import ImageAnalysis
 
-
 VEHICLES = {"car", "motorcycle", "bicycle", "boat", "airplane", "train", "truck", "bus"}
-FOOD = {"banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake"}
+FOOD = {
+    "banana", "apple", "sandwich", "orange", "broccoli", "carrot",
+    "hot dog", "pizza", "donut", "cake",
+}
 
 
 def _bounded_ratio(value: float, low: float, high: float) -> float:
@@ -86,7 +88,9 @@ def score_image(item: ImageAnalysis, config: dict[str, Any]) -> ImageAnalysis:
         reasons.append("imagen casi uniforme o vacia")
 
     base = float(weights["base"])
-    total = round(max(0.0, min(100.0, base + quality + metadata + originality + content - penalties)))
+    total = round(
+        max(0.0, min(100.0, base + quality + metadata + originality + content - penalties))
+    )
     thresholds = config["thresholds"]
     if total >= int(thresholds["important"]):
         decision = "important"

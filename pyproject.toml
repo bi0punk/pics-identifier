@@ -18,7 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 objects = ["ultralytics>=8.3"]
 heic = ["pillow-heif>=0.18"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
 fototriage = "fototriage.cli:main"
@@ -29,4 +29,16 @@ include = ["fototriage*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["fototriage", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"fototriage/reports.py" = ["E501"]
 

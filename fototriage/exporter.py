@@ -7,7 +7,6 @@ from pathlib import Path
 
 from .models import ImageAnalysis
 
-
 FOLDERS = {
     "important": "01_importantes",
     "useful": "02_utiles",

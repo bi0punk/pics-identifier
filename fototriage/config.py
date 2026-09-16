@@ -7,7 +7,6 @@ from typing import Any
 
 import yaml
 
-
 DEFAULT_CONFIG = Path(__file__).resolve().parents[1] / "config" / "scoring.yaml"
 
 

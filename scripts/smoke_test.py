@@ -28,7 +28,12 @@ def main() -> int:
             env={"PYTHONPATH": str(project)},
             check=False,
         )
-        expected = [db, reports / "resultados.csv", reports / "resultados.json", reports / "galeria.html"]
+        expected = [
+            db,
+            reports / "resultados.csv",
+            reports / "resultados.json",
+            reports / "galeria.html",
+        ]
         if result.returncode or not all(path.exists() for path in expected):
             print("Smoke test FALLIDO", file=sys.stderr)
             return 1

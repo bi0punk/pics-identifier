@@ -6,7 +6,6 @@ from pathlib import Path
 
 from .models import Detection, ImageAnalysis
 
-
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,7 +133,8 @@ class Database:
                 corrupt=bool(row["corrupt"]), error=row["error"], duplicate_of=row["duplicate_of"],
                 detections=[Detection(**d) for d in json.loads(row["detections_json"])],
                 score=row["score"], decision=row["decision"],
-                components=json.loads(row["components_json"]), reasons=json.loads(row["reasons_json"]),
+                components=json.loads(row["components_json"]),
+                reasons=json.loads(row["reasons_json"]),
             ))
         return items
 

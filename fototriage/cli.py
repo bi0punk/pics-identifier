@@ -12,7 +12,6 @@ from .exporter import build_plan, execute_plan
 from .reports import summary, write_all, write_gallery
 from .scanner import scan
 
-
 DEFAULT_DB = Path("fototriage.sqlite3")
 
 
@@ -112,7 +111,9 @@ def command_export(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="fototriage", description="Clasificacion fotografica local, segura y explicable")
+    parser = argparse.ArgumentParser(
+        prog="fototriage", description="Clasificacion fotografica local, segura y explicable"
+    )
     parser.add_argument("--version", action="version", version="FotoTriage 0.1.0")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -125,7 +126,9 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--report", metavar="DIRECTORIO", help="Generar reportes al finalizar")
     scan_parser.set_defaults(handler=command_scan)
 
-    report_parser = sub.add_parser("report", help="Generar CSV, JSON y galeria de la ultima ejecucion")
+    report_parser = sub.add_parser(
+        "report", help="Generar CSV, JSON y galeria de la ultima ejecucion"
+    )
     report_parser.add_argument("--db", default=str(DEFAULT_DB))
     report_parser.add_argument("--output", default="reportes")
     report_parser.set_defaults(handler=command_report)
@@ -144,9 +147,16 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser = sub.add_parser("export", help="Copiar o mover imagenes clasificadas")
     export_parser.add_argument("--db", default=str(DEFAULT_DB))
     export_parser.add_argument("--output", required=True)
-    export_parser.add_argument("--decision", action="append", choices=["important", "useful", "review", "trash_candidate", "corrupt"], default=[])
+    export_parser.add_argument(
+        "--decision",
+        action="append",
+        choices=["important", "useful", "review", "trash_candidate", "corrupt"],
+        default=[],
+    )
     export_parser.add_argument("--mode", choices=["copy", "move"], default="copy")
-    export_parser.add_argument("--apply", action="store_true", help="Ejecutar; sin esta opcion solo simula")
+    export_parser.add_argument(
+        "--apply", action="store_true", help="Ejecutar; sin esta opcion solo simula"
+    )
     export_parser.set_defaults(handler=command_export)
     return parser
 

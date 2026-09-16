@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from .analyzers.basic import analyze_basic, enable_heic_if_available, hamming_distance
 from .config import config_fingerprint
 from .database import Database
 from .models import ImageAnalysis
 from .scoring import score_image
-
 
 ProgressCallback = Callable[[int, int, Path], None]
 
@@ -49,14 +48,20 @@ def mark_duplicates(items: list[ImageAnalysis], perceptual_distance: int = 4) ->
     for group in buckets.values():
         if len(group) < 2:
             continue
-        ordered = sorted(group, key=lambda x: (x.width * x.height, x.sharpness, x.size_bytes), reverse=True)
+        ordered = sorted(
+            group,
+            key=lambda x: (x.width * x.height, x.sharpness, x.size_bytes),
+            reverse=True,
+        )
         keepers: list[ImageAnalysis] = []
         for item in ordered:
             item_ratio = item.width / max(1, item.height)
             match = next((
                 keeper for keeper in keepers
                 if abs(item_ratio - (keeper.width / max(1, keeper.height))) <= 0.03
-                and hamming_distance(item.perceptual_hash, keeper.perceptual_hash) <= perceptual_distance
+                and hamming_distance(
+                    item.perceptual_hash, keeper.perceptual_hash
+                ) <= perceptual_distance
             ), None)
             if match:
                 item.duplicate_of = match.path

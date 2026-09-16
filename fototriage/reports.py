@@ -41,7 +41,11 @@ def write_csv(items: list[ImageAnalysis], path: Path) -> None:
 
 def write_json(items: list[ImageAnalysis], path: Path, run_info: dict | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"run": run_info or {}, "summary": summary(items), "images": [i.to_dict() for i in items]}
+    payload = {
+        "run": run_info or {},
+        "summary": summary(items),
+        "images": [i.to_dict() for i in items],
+    }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
