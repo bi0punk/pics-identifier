@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fototriage"
+version = "0.1.0"
+description = "Clasificador local, explicable y seguro de colecciones fotograficas"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+  "Pillow>=10.0",
+  "numpy>=1.24",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+objects = ["ultralytics>=8.3"]
+heic = ["pillow-heif>=0.18"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+fototriage = "fototriage.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fototriage*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

@@ -1,0 +1,60 @@
+version: 1
+
+thresholds:
+  important: 75
+  useful: 50
+  review: 25
+
+quality:
+  blur_bad: 18.0
+  blur_good: 70.0
+  dark: 35.0
+  bright: 225.0
+  min_width: 640
+  min_height: 480
+  high_megapixels: 3.0
+
+weights:
+  base: 12
+  quality_max: 20
+  metadata_max: 10
+  originality: 10
+  content_max: 40
+
+object_weights:
+  person: 30
+  cat: 25
+  dog: 25
+  bird: 18
+  horse: 18
+  sheep: 15
+  cow: 15
+  elephant: 18
+  bear: 18
+  vehicle: 10
+  car: 10
+  motorcycle: 10
+  bicycle: 8
+  boat: 10
+  airplane: 8
+  train: 8
+  food: 6
+
+penalties:
+  duplicate: 32
+  likely_screenshot: 16
+  very_blurry: 20
+  tiny_image: 18
+  near_uniform: 25
+
+formats:
+  - .jpg
+  - .jpeg
+  - .png
+  - .webp
+  - .bmp
+  - .tif
+  - .tiff
+  - .heic
+  - .heif
+
