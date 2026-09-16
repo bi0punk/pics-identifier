@@ -81,3 +81,23 @@ def test_existing_destination_gets_suffix(tmp_path: Path):
     plan = build_plan([item], out, {"important"}, "copy")
     assert plan[0].destination != existing
     assert plan[0].destination.name != "a.jpg"
+
+
+def test_collision_within_plan_renames(tmp_path: Path):
+    first = tmp_path / "sub" / "foto.jpg"
+    second = tmp_path / "otro" / "foto.jpg"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"1")
+    second.write_bytes(b"2")
+    items = [
+        _item(first, "important", "foto.jpg"),
+        _item(second, "important", "foto.jpg"),
+    ]
+    plan = build_plan(items, tmp_path / "out", {"important"}, "copy")
+    assert len(plan) == 2
+    destinations = {action.destination for action in plan}
+    assert len(destinations) == 2
+    completed, errors = execute_plan(plan)
+    assert completed == 2
+    assert errors == []

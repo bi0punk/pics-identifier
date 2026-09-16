@@ -35,7 +35,7 @@ def _load_items(db_path: str):
 def command_scan(args: argparse.Namespace) -> int:
     config = load_config(args.config)
     run_id, items, warnings = scan(
-        args.source, args.db, config, args.profile, args.model, _progress
+        args.source, args.db, config, args.profile, args.model, _progress, args.workers
     )
     stats = summary(items)
     print(json.dumps({"run_id": run_id, **stats}, indent=2, ensure_ascii=False))
@@ -123,6 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan_parser.add_argument("--config", default=str(DEFAULT_CONFIG))
     scan_parser.add_argument("--profile", choices=["fast", "balanced", "deep"], default="fast")
     scan_parser.add_argument("--model", default="yolo11n.pt")
+    scan_parser.add_argument("--workers", type=int, default=0, help="Hilos de analisis (0 = auto)")
     scan_parser.add_argument("--report", metavar="DIRECTORIO", help="Generar reportes al finalizar")
     scan_parser.set_defaults(handler=command_scan)
 

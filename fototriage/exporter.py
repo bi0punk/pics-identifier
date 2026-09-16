@@ -23,21 +23,43 @@ class ExportAction:
     operation: str
 
 
+def _unique_destination(
+    destination: Path, source: Path, used: set[str]
+) -> Path:
+    key = str(destination.resolve())
+    if key in used:
+        return _rename_destination(destination, source, used)
+    if destination.exists() and destination.resolve() != source.resolve():
+        return _rename_destination(destination, source, used)
+    used.add(key)
+    return destination
+
+
+def _rename_destination(destination: Path, source: Path, used: set[str]) -> Path:
+    digest = hashlib.sha256(str(source).encode()).hexdigest()[:8]
+    while True:
+        candidate = destination.with_name(f"{destination.stem}_{digest}{destination.suffix}")
+        candidate_key = str(candidate.resolve())
+        if candidate_key not in used and not candidate.exists():
+            used.add(candidate_key)
+            return candidate
+        digest = hashlib.sha256(f"{digest}{source}".encode()).hexdigest()[:8]
+
+
 def build_plan(
     items: list[ImageAnalysis], output: Path, decisions: set[str], operation: str
 ) -> list[ExportAction]:
     if operation not in {"copy", "move"}:
         raise ValueError("La operacion debe ser copy o move")
     actions: list[ExportAction] = []
+    used: set[str] = set()
     for item in items:
         if item.decision not in decisions:
             continue
         source = Path(item.path)
         folder = FOLDERS.get(item.decision, item.decision)
         destination = output / folder / item.relative_path
-        if destination.exists() and destination.resolve() != source.resolve():
-            suffix = hashlib.sha256(str(source).encode()).hexdigest()[:8]
-            destination = destination.with_name(f"{destination.stem}_{suffix}{destination.suffix}")
+        destination = _unique_destination(destination, source, used)
         actions.append(ExportAction(source, destination, operation))
     return actions
 

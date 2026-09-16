@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import itertools
+import os
+import threading
 from collections import defaultdict
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from .analyzers.basic import analyze_basic, enable_heic_if_available, hamming_distance
 from .config import config_fingerprint
 from .database import Database
-from .models import ImageAnalysis
+from .models import Detection, ImageAnalysis
 from .scoring import score_image
 
 ProgressCallback = Callable[[int, int, Path], None]
+
+# YOLO no es seguro para inferencia concurrente sobre la misma instancia.
+_DETECTOR_LOCK = threading.Lock()
 
 
 def discover_images(root: Path, formats: list[str]) -> list[Path]:
@@ -69,6 +76,114 @@ def mark_duplicates(items: list[ImageAnalysis], perceptual_distance: int = 4) ->
                 keepers.append(item)
 
 
+def _analyze_fresh(
+    path: Path, root: Path, detector
+) -> ImageAnalysis:
+    item = analyze_basic(path, root)
+    if detector is not None and not item.corrupt:
+        try:
+            with _DETECTOR_LOCK:
+                item.detections = detector.detect(path)
+        except Exception as exc:
+            item.reasons.append(f"deteccion de objetos fallo: {exc}")
+    return item
+
+
+def _reuse_from_cache(
+    cache: dict[str, ImageAnalysis], path: Path, root: Path
+) -> ImageAnalysis | None:
+    cached = cache.get(path.relative_to(root).as_posix())
+    if cached is None:
+        return None
+    stat = path.stat()
+    if cached.size_bytes != stat.st_size or cached.mtime_ns != stat.st_mtime_ns:
+        return None
+    fresh = ImageAnalysis(
+        path=cached.path,
+        relative_path=cached.relative_path,
+        size_bytes=cached.size_bytes,
+        mtime_ns=cached.mtime_ns,
+        sha256=cached.sha256,
+        perceptual_hash=cached.perceptual_hash,
+        width=cached.width,
+        height=cached.height,
+        format=cached.format,
+        mode=cached.mode,
+        megapixels=cached.megapixels,
+        brightness=cached.brightness,
+        sharpness=cached.sharpness,
+        entropy=cached.entropy,
+        has_exif=cached.has_exif,
+        camera_make=cached.camera_make,
+        camera_model=cached.camera_model,
+        captured_at=cached.captured_at,
+        has_gps=cached.has_gps,
+        likely_screenshot=cached.likely_screenshot,
+        corrupt=cached.corrupt,
+        error=cached.error,
+        detections=[Detection(d.label, d.confidence, d.box) for d in cached.detections],
+    )
+    return fresh
+
+
+def _analyze_paths(
+    paths: list[Path],
+    root: Path,
+    detector,
+    cache: dict[str, ImageAnalysis],
+    progress: ProgressCallback | None,
+    workers: int | None,
+) -> list[ImageAnalysis]:
+    def analyze(path: Path) -> ImageAnalysis:
+        reused = _reuse_from_cache(cache, path, root)
+        return reused if reused is not None else _analyze_fresh(path, root, detector)
+
+    workers = workers if workers and workers > 0 else min(32, (os.cpu_count() or 1) + 4)
+    if workers == 1:
+        items: list[ImageAnalysis] = []
+        for index, path in enumerate(paths, start=1):
+            if progress:
+                progress(index, len(paths), path)
+            items.append(analyze(path))
+        return items
+    ordered: list[ImageAnalysis] = [None] * len(paths)  # type: ignore[list-item]
+    completed = itertools.count(1)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(analyze, path): index for index, path in enumerate(paths)
+        }
+        for future in as_completed(futures):
+            index = futures[future]
+            ordered[index] = future.result()
+            if progress:
+                progress(next(completed), len(paths), paths[index])
+    return [item for item in ordered if item is not None]
+
+
+def _load_cache(
+    database_path: str | Path, root: Path, profile: str, config: dict
+) -> dict[str, ImageAnalysis]:
+    db: Database | None = None
+    try:
+        db = Database(database_path)
+        run_id = db.latest_run_id()
+        info = db.run_info(run_id)
+        if not info:
+            return {}
+        if (
+            info.get("source") != str(root)
+            or info.get("profile") != profile
+            or info.get("config_hash") != config_fingerprint(config)
+        ):
+            return {}
+        return {item.relative_path: item for item in db.load_images(run_id)}
+    except Exception:
+        return {}
+    finally:
+        if db is not None:
+            db.close()
+
+
 def scan(
     source: str | Path,
     database_path: str | Path,
@@ -76,6 +191,7 @@ def scan(
     profile: str = "fast",
     model_name: str = "yolo11n.pt",
     progress: ProgressCallback | None = None,
+    workers: int | None = None,
 ) -> tuple[int, list[ImageAnalysis], list[str]]:
     root = Path(source).expanduser().resolve()
     if not root.is_dir():
@@ -92,17 +208,8 @@ def scan(
         except Exception as exc:
             warnings.append(str(exc))
 
-    items: list[ImageAnalysis] = []
-    for index, path in enumerate(paths, start=1):
-        if progress:
-            progress(index, len(paths), path)
-        item = analyze_basic(path, root)
-        if detector is not None and not item.corrupt:
-            try:
-                item.detections = detector.detect(path)
-            except Exception as exc:
-                item.reasons.append(f"deteccion de objetos fallo: {exc}")
-        items.append(item)
+    cache = _load_cache(database_path, root, profile, config)
+    items = _analyze_paths(paths, root, detector, cache, progress, workers)
 
     mark_duplicates(items)
     for item in items:
