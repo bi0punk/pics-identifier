@@ -41,6 +41,9 @@ fototriage scan ~/Fotos \
   --db ./fototriage.sqlite3 \
   --report ./reportes
 
+# Controlar la cantidad de hilos de analisis (por defecto usa todos los nucleos)
+fototriage scan ~/Fotos --profile fast --db ./fototriage.sqlite3 --workers 4
+
 # Abrir/crear galeria
 fototriage gallery --db ./fototriage.sqlite3 --open
 
@@ -86,6 +89,11 @@ El score combina:
 - Penalizaciones: captura probable, desenfoque, baja resolucion e imagen casi uniforme.
 
 Todos los pesos estan en `config/scoring.yaml`. Conviene calibrarlos con una muestra de fotos reales antes de usar `trash_candidate` para tomar decisiones.
+
+## Rendimiento
+
+- `scan` analiza las imagenes en paralelo (ajustable con `--workers`) preservando el orden estable de resultados.
+- Los re-scans sobre la misma ruta, perfil y configuracion reutilizan el analisis de las imagenes que no cambiaron (comparando mtime y tamano), por lo que solo se reprocesan archivos nuevos o modificados.
 
 ## Resultados
 
