@@ -1,15 +1,108 @@
-# FotoTriage CLI
+# pics-identifier — FotoTriage CLI
 
-FotoTriage analiza una ruta de imagenes y asigna un score explicable de 0 a 100. El objetivo es separar fotografias potencialmente importantes de capturas, imagenes defectuosas, duplicados y basura probable sin depender de servicios externos.
+FotoTriage analiza una ruta de imágenes y asigna un score explicable de 0 a 100. El objetivo es separar fotografías potencialmente importantes de capturas, imágenes defectuosas, duplicados y basura probable sin depender de servicios externos.
 
-## Seguridad por defecto
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
+[![CI](https://github.com/bi0punk/pics-identifier/actions/workflows/ci.yml/badge.svg)](https://github.com/bi0punk/pics-identifier/actions/workflows/ci.yml)
 
-- No modifica ni elimina originales durante `scan`.
-- `export` simula la operacion salvo que se entregue `--apply`.
-- La opcion recomendada es `--mode copy`.
-- Las decisiones, componentes y motivos quedan registrados en SQLite y JSON.
+## Contenido
 
-## Instalacion en Linux
+- [Características](#características)
+- [Arquitectura](#arquitectura)
+- [Stack](#stack)
+- [Estructura del repositorio](#estructura-del-repositorio)
+- [Instalación](#instalación)
+- [Uso](#uso)
+- [Configuración](#configuración)
+- [Tests / CI](#tests--ci)
+- [Roadmap](#roadmap)
+- [Licencia](#licencia)
+
+## Características
+
+- Score explicable de 0 a 100 combinando calidad, metadatos, contenido, originalidad y penalizaciones.
+- Análisis local, sin servicios externos ni envío de imágenes.
+- Segmentación por decisiones: `important`, `useful`, `review`, `trash_candidate`, `corrupt`.
+- Detección de duplicados exactos (SHA-256) y perceptivos (hash + relación de aspecto).
+- Perfiles de análisis `fast`, `balanced` y `deep`.
+- Detección opcional de objetos con YOLO en CPU (`ultralytics`).
+- Soporte opcional HEIC/HEIF (`pillow-heif`).
+- Reportes en CSV, JSON y galería HTML offline.
+- Historial de ejecuciones y explicaciones en SQLite.
+- Reanálisis incremental: reutiliza resultados no modificados comparando `mtime` y tamaño.
+- Exportación (`copy`/`move`) con simulación por defecto; solo ejecuta con `--apply`.
+
+## Arquitectura
+
+```mermaid
+flowchart TD
+  CLI[cli.py<br/>argparse] --> SCAN[scanner.scan]
+  CLI --> REPORTS[reports.py]
+  CLI --> EXPORT[exporter.py]
+
+  SCAN --> DISC[discover_images<br/>rglob por formato]
+  DISC --> PAR[_analyze_paths<br/>ThreadPoolExecutor]
+  PAR --> CACHE{_load_cache<br/>mtime + tamaño}
+  CACHE -->|hit| REUSE[Reutiliza ImageAnalysis]
+  CACHE -->|miss| BASIC[analyzers/basic.py<br/>Pillow + numpy]
+  CACHE -->|miss| OBJ[analyzers/objects.py<br/>YOLO opcional, lock]
+
+  BASIC --> DUP[mark_duplicates<br/>SHA-256 + pHash]
+  OBJ --> DUP
+  REUSE --> DUP
+  DUP --> SCORE[scoring.score_image<br/>config/scoring.yaml]
+
+  SCORE --> DB[(SQLite<br/>runs + imágenes)]
+  SCORE --> REPORTS
+  REPORTS --> OUT[resultados.csv / .json<br/>galeria.html]
+  EXPORT --> PLAN[build_plan / execute_plan]
+```
+
+## Stack
+
+| Componente | Tecnología |
+|---|---|
+| Lenguaje | Python >= 3.10 |
+| Procesamiento de imagen | Pillow >= 10, numpy >= 1.24 |
+| Configuración | PyYAML >= 6.0 |
+| Detección de objetos (opcional) | ultralytics >= 8.3 |
+| HEIC/HEIF (opcional) | pillow-heif >= 0.18 |
+| Persistencia | SQLite |
+| Tests / lint | pytest >= 8, ruff >= 0.6 |
+| Empaquetado | setuptools + pyproject.toml |
+
+## Estructura del repositorio
+
+```
+pics-identifier/
+├── config/
+│   └── scoring.yaml            # Umbrales, pesos y penalizaciones
+├── fototriage/
+│   ├── cli.py                  # Punto de entrada (subcomandos)
+│   ├── scanner.py              # Descubrimiento, análisis paralelo, caché, duplicados
+│   ├── scoring.py              # Cálculo del score
+│   ├── database.py             # Historial SQLite
+│   ├── exporter.py             # Plan de copia/movimiento
+│   ├── reports.py              # CSV, JSON y galería HTML
+│   ├── config.py               # Carga de configuración
+│   ├── models.py               # ImageAnalysis / Detection
+│   └── analyzers/
+│       ├── basic.py            # Análisis técnico y metadatos
+│       └── objects.py          # Detector YOLO opcional
+├── scripts/
+│   └── smoke_test.py           # Prueba end-to-end
+├── tests/                      # Suites pytest
+├── .github/workflows/ci.yml    # CI
+├── install.sh                  # Instalación en Linux (venv)
+├── pyproject.toml
+├── requirements.txt
+├── requirements-objects.txt
+└── spec.md
+```
+
+## Instalación
+
+Instalación en Linux con entorno virtual:
 
 ```bash
 chmod +x install.sh
@@ -17,7 +110,7 @@ chmod +x install.sh
 source .venv/bin/activate
 ```
 
-Para agregar deteccion de personas, animales y objetos:
+Para agregar detección de personas, animales y objetos:
 
 ```bash
 pip install -e '.[objects]'
@@ -25,26 +118,26 @@ pip install -e '.[objects]'
 
 El primer uso del perfil `balanced` puede descargar el modelo configurado. El modo `fast` no necesita YOLO.
 
-## Uso rapido
+## Uso
 
 ```bash
-# Analisis liviano, completamente local
+# Análisis liviano, completamente local
 fototriage scan ~/Fotos \
   --profile fast \
   --db ./fototriage.sqlite3 \
   --report ./reportes
 
-# Analisis con deteccion de objetos en CPU
+# Análisis con detección de objetos en CPU
 fototriage scan ~/Fotos \
   --profile balanced \
   --model yolo11n.pt \
   --db ./fototriage.sqlite3 \
   --report ./reportes
 
-# Controlar la cantidad de hilos de analisis (por defecto usa todos los nucleos)
+# Controlar la cantidad de hilos de análisis (por defecto usa todos los núcleos)
 fototriage scan ~/Fotos --profile fast --db ./fototriage.sqlite3 --workers 4
 
-# Abrir/crear galeria
+# Abrir/crear galería
 fototriage gallery --db ./fototriage.sqlite3 --open
 
 # Explicar una imagen
@@ -68,60 +161,61 @@ fototriage export \
   --apply
 ```
 
-## Perfiles
+### Perfiles
 
-| Perfil | Analisis tecnico | Duplicados | Objetos YOLO | Semantica/OCR |
+| Perfil | Análisis técnico | Duplicados | Objetos YOLO | Semántica/OCR |
 |---|---:|---:|---:|---:|
-| `fast` | Si | Si | No | No |
-| `balanced` | Si | Si | Si, si esta instalado | No |
-| `deep` | Si | Si | Si, si esta instalado | Preparado para fase 2 |
+| `fast` | Sí | Sí | No | No |
+| `balanced` | Sí | Sí | Sí, si está instalado | No |
+| `deep` | Sí | Sí | Sí, si está instalado | Preparado para fase 2 |
 
-Si YOLO no esta instalado, `balanced` continua con el analisis basico y muestra una advertencia.
+Si YOLO no está instalado, `balanced` continúa con el análisis básico y muestra una advertencia.
 
-## Score
-
-El score combina:
-
-- Calidad: nitidez, exposicion y resolucion.
-- Metadatos: EXIF, camara, fecha y GPS.
-- Contenido: objetos detectados cuando YOLO esta activo.
-- Originalidad: penalizacion de duplicados.
-- Penalizaciones: captura probable, desenfoque, baja resolucion e imagen casi uniforme.
-
-Todos los pesos estan en `config/scoring.yaml`. Conviene calibrarlos con una muestra de fotos reales antes de usar `trash_candidate` para tomar decisiones.
-
-## Rendimiento
-
-- `scan` analiza las imagenes en paralelo (ajustable con `--workers`) preservando el orden estable de resultados.
-- Los re-scans sobre la misma ruta, perfil y configuracion reutilizan el analisis de las imagenes que no cambiaron (comparando mtime y tamano), por lo que solo se reprocesan archivos nuevos o modificados.
-
-## Resultados
+### Resultados
 
 `--report` genera:
 
-- `resultados.csv`: revision y filtrado en planilla.
+- `resultados.csv`: revisión y filtrado en planilla.
 - `resultados.json`: salida completa para integraciones.
-- `galeria.html`: galeria offline con filtros.
+- `galeria.html`: galería offline con filtros.
 - `fototriage.sqlite3`: historial de ejecuciones y explicaciones.
 
-## Pruebas
+## Configuración
+
+El score combina calidad (nitidez, exposición, resolución), metadatos (EXIF, cámara, fecha, GPS), contenido (objetos detectados), originalidad (penalización de duplicados) y penalizaciones (captura probable, desenfoque, baja resolución, imagen casi uniforme).
+
+Todos los umbrales, pesos y penalizaciones están en `config/scoring.yaml`. Conviene calibrarlos con una muestra de fotos reales antes de usar `trash_candidate` para tomar decisiones.
+
+### Seguridad por defecto
+
+- No modifica ni elimina originales durante `scan`.
+- `export` simula la operación salvo que se entregue `--apply`.
+- La opción recomendada es `--mode copy`.
+- Las decisiones, componentes y motivos quedan registrados en SQLite y JSON.
+
+## Tests / CI
 
 ```bash
 pip install -e '.[dev]'
 pytest -q
 ```
 
-Tambien se puede ejecutar una prueba end-to-end sin pytest:
+También se puede ejecutar una prueba end-to-end sin pytest:
 
 ```bash
 python3 scripts/smoke_test.py
 ```
 
-## Limites del MVP
+El workflow `.github/workflows/ci.yml` ejecuta en Python 3.10, 3.11 y 3.12: `ruff check .`, `pytest` y el smoke test end-to-end.
 
-- El detector general reconoce clases comunes; no sabe por si solo que una foto es emocionalmente importante.
-- La deteccion de capturas es heuristica.
-- HEIC necesita `pip install -e '.[heic]'`.
-- `deep` reserva la interfaz para CLIP y OCR, que se incorporaran despues de calibrar el MVP.
-- Nunca se debe automatizar el borrado definitivo solo con el score inicial.
+## Roadmap
 
+- [x] Análisis técnico, metadatos y duplicados (`fast`)
+- [x] Detección de objetos con YOLO (`balanced`) y caché incremental
+- [x] Reportes CSV/JSON/galería y exportación segura en dos pasos
+- [ ] Semántica y OCR reales en el perfil `deep` (CLIP/OCR)
+- [ ] Calibración de pesos con muestras reales
+
+## Licencia
+
+Sin archivo LICENSE declarado en el repositorio.
