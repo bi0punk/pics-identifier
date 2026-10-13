@@ -74,7 +74,9 @@ class Database:
             (source, profile, config_hash),
         )
         self.connection.commit()
-        return int(cursor.lastrowid)
+        last_id = cursor.lastrowid
+        assert last_id is not None
+        return last_id
 
     def save_image(self, run_id: int, item: ImageAnalysis) -> None:
         self.connection.execute(
